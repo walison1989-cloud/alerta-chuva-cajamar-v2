@@ -49,12 +49,50 @@ const evidence: PacoteEvidencias = {
 const forecast = { fonte: 'Open-Meteo', precipMm24h: 20, probabilidadeMaxPct: 50, fetchedAt: now - 10 * 60_000, referenciaEm: new Date(now).toISOString(), timezone: 'America/Sao_Paulo' }
 
 describe('triangulação experimental de chuva', () => {
-  it('interpela com pesos IDW² e detecta que o ponto fica dentro da rede', () => {
+  it('interpola no triângulo de três estações envolvendo o endereço', () => {
     const result = triangularChuva24h(point, stations, now)
     expect(result.suporteEspacial).toBe(true)
     expect(result.estacoes.reduce((sum, item) => sum + item.peso, 0)).toBeCloseTo(1)
     expect(result.chuvaObservadaMm).toBeGreaterThan(0)
-    expect(result.estacoes).toHaveLength(4)
+    expect(result.estacoes).toHaveLength(3)
+    expect(result.metodo).toBe('triangulo')
+    expect(result.chuvaObservadaMm).toBeCloseTo(30, 1)
+  })
+
+  it('não interpola três estações concentradas no mesmo lado do imóvel', () => {
+    const east = [
+      station('E1', -23.34, -46.92, 5),
+      station('E2', -23.35, -46.91, 10),
+      station('E3', -23.36, -46.92, 15),
+    ]
+    const result = triangularChuva24h(point, east, now)
+    expect(result.suporteEspacial).toBe(false)
+    expect(result.chuvaObservadaMm).toBeNull()
+  })
+
+  it('não mistura acumulados de horários separados por mais de uma hora', () => {
+    const mismatch = stations.slice(0, 3).map((item, index) => index === 2
+      ? { ...item, lastReadingAt: new Date(now - 3 * 3_600_000).toISOString() }
+      : item)
+    const result = triangularChuva24h(point, mismatch, now)
+    expect(result.suporteEspacial).toBe(false)
+    expect(result.chuvaObservadaMm).toBeNull()
+  })
+
+  it('não eleva a confiabilidade quando a variação entre estações é extrema', () => {
+    const uneven = stations.map((item, i) => ({ ...item, accumulatedMm: i === 0 ? 120 : 0 }))
+    const result = triangularChuva24h(point, uneven, now)
+    expect(result.suporteEspacial).toBe(false)
+    expect(result.justificativa).toContain('divergem')
+  })
+
+  it('aceita medição quase no ponto sem chamar isso de triangulação', () => {
+    const onPoint = station('LOCAL', point.latitude, point.longitude, 7)
+    const result = triangularChuva24h(point, [onPoint], now)
+    expect(result.metodo).toBe('direta')
+    expect(result.chuvaObservadaMm).toBe(7)
+    expect(result.suporteEspacial).toBe(true)
+    expect(result.estacoes).toHaveLength(1)
   })
 
   it('desconsidera catálogo sem telemetria, leitura velha, fonte não autorizada e janela diferente', () => {
@@ -70,7 +108,7 @@ describe('triangulação experimental de chuva', () => {
 
   it('não chama de triangulação uma leitura sem três estações cercando o ponto', () => {
     const result = triangularChuva24h(point, stations.slice(0, 2), now)
-    expect(result.chuvaObservadaMm).not.toBeNull()
+    expect(result.chuvaObservadaMm).toBeNull()
     expect(result.suporteEspacial).toBe(false)
   })
 

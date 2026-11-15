@@ -14,6 +14,24 @@ import {
   makeRegra,
 } from '@/test/fixtures/avaliacao'
 
+describe('integração da triangulação à decisão do endereço', () => {
+  it('não conclui perigo para o imóvel com dados espaciais de chuva insuficientes', () => {
+    const result = avaliarPreventivamente(makeEntrada({
+      chuvaTriangulada: { chuvaObservadaMm: null, suporteEspacial: false, estacoes: [] },
+    }))
+    expect(result.resultado.nivel).toBe('dados_insuficientes')
+    expect(result.resultado.dadosAusentes.map((dado) => dado.codigo)).toContain('chuva_sem_triangulo')
+  })
+
+  it('usa a chuva triangulada na classificação, não a medida isolada mais alta', () => {
+    const result = avaliarPreventivamente(makeEntrada({
+      chuvaTriangulada: { chuvaObservadaMm: 0, suporteEspacial: true, estacoes: ['A', 'B', 'C'] },
+    }))
+    expect(result.resultado.dimensoes.chuvaObservada).toBe(0)
+    expect(result.resultado.motivos.map((item) => item.codigo)).toContain('chuva_triangulada_3_estacoes')
+  })
+})
+
 describe('avaliarPreventivamente', () => {
   it('limita à atenção previsão moderada mesmo em área Alta sem terreno verificado', () => {
     const avaliacao = avaliarPreventivamente(makeEntrada())

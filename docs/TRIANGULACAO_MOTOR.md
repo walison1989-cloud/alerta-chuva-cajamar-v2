@@ -1,24 +1,47 @@
-# Triangulação experimental de chuva no ponto
+# Interpolação de chuva com três estações — atualização 1.4
 
-## O que foi conectado
+## Objetivo
 
-A página `/analise-preventiva` agora usa a camada existente `vw_estacoes_publicas` (por `fetchRainSnapshot`) junto da localização que a própria página já consulta, da previsão Open-Meteo e da suscetibilidade consultada pela RPC da Etapa 5.2. A nova leitura aparece no cartão **Triangulação das estações**. Não é necessário cadastrar novamente estações nem alterar o banco remoto.
+Para cada **endereço cadastrado**, combinar a chuva *observada* de pluviômetros CEMADEN com a previsão *futura* da Open-Meteo consultada nas coordenadas do próprio endereço, além da suscetibilidade e dos dados do terreno. A triangulação não é uma probabilidade de alagamento e não estima o nível do rio.
 
-O cálculo roda no navegador. A localização privada do imóvel permanece no fluxo atual: vem de `getMyAddress` sob a sessão do usuário e não é enviada ao RPC de estações. O snapshot público contém apenas as estações e leituras que já são públicas.
+## Dados utilizados (mesmo Supabase, sem novas tabelas)
 
-## Critérios de entrada
+- `vw_estacoes_publicas`, alimentada por `estacoes` e `medicoes_chuva`, para coordenadas e acumulados válidos das últimas **24 horas**.
+- RPCs existentes de evidências (suscetibilidade do ponto) e `terreno_motor2_no_ponto` (altitude absoluta, elevação relativa, declividade).
+- Open-Meteo: previsão nas coordenadas do endereço; acumulado das próximas **24 horas** e concentração prevista em 3/6 horas.
 
-- Origem exata `CEMADEN`; estações de catálogo, inclusive SP Águas/INMET, não entram sem telemetria.
-- Leitura `acumulado_24h`, janela de 24 h, qualidade `oficial`, valor finito não negativo e horário da leitura com até 6 horas.
-- Raio máximo de 30 km, limite de 10 estações, alinhamento dos horários em até uma hora e deduplicação por código/posição.
-- Interpolação IDW com potência 2. A classificação exige leitura direta no próprio ponto ou pelo menos três estações recentes cujo triângulo contenha o ponto. Fora dessa cobertura, a estimativa numérica é mostrada apenas como referência e não classifica.
-- Também exige previsão Open-Meteo recente e uma área oficial de suscetibilidade que contenha exatamente o ponto. Áreas próximas não são tratadas como cobertura do ponto.
-- Aplica a matriz da regra publicada somente se sua versão de motor for `1.0.0`. As faixas de chuva observada e prevista permanecem separadas; não se somam as duas janelas.
+## Seleção dos três pluviômetros
 
-Os limites são salvaguardas experimentais, não limiares hidrológicos calibrados. Não se apresenta percentual de alagamento, não se envia notificação e essa leitura nova não é gravada no histórico. A classificação existente da Etapa 5.2 permanece separada.
+1. Aceitar apenas estação CEMADEN com leitura oficial, unidade **mm**, tipo `acumulado_24h`, janela **24 h**, data de até **6 h** e não futura.
+2. Ignorar entradas repetidas pelo código/coordenadas, sem telemetria, janelas diferentes ou fontes sem equivalência de medição.
+3. Examinar até 18 estações próximas, e procurar **exatamente três** formando triângulo não degenerado que contenha o ponto. O maior afastamento permitido entre imóvel e uma estação do triângulo é **15 km**. As três leituras devem estar separadas no tempo em até **60 minutos**.
+4. Escolher o triângulo envolvente mais compacto dentre os candidatos, não apenas as três estações mais próximas se elas estiverem no mesmo lado do imóvel.
+5. Interpolar o acumulado de 24 h por pesos **baricêntricos** da posição do endereço dentro do triângulo. Os pesos são mostrados ao usuário; o resultado é **estimativa espacial**, não leitura direta do imóvel.
+6. Se existir estação a até **100 m** do endereço, utilizar essa medição diretamente, marcando o método corretamente.
+7. Se não houver geometria válida, leituras alinhadas ou as diferenças entre os três acumulados forem excessivas, classificar a cobertura como **insuficiente**. A estimativa não pode sustentar uma decisão conclusiva de risco/segurança.
 
-## Limitações
+Os limites de distância, idade, divergência e geometria são salvaguardas de engenharia *experimentais*, não parâmetros hidrológicos validados para Cajamar.
 
-As estações podem estar distantes, ter janelas de observação que não representam a mesma chuva local ou ser afetadas por falhas de telemetria. O teste geométrico confirma cobertura geométrica das estações, não que chuva seja espacialmente uniforme. A carta tem escala e ano próprios; não substitui topografia local, drenagem, nível de rios ou observação de campo. Não há validação retrospectiva local que justifique chamar o resultado de previsão operacional.
+## Como entra no motor
 
-O módulo Python `motor_probabilistico` continua sendo um módulo local/offline; a hospedagem Vercel estática não executa Python. A nova leitura do navegador é uma implementação TypeScript separada para usar os dados disponíveis no MVP.
+- O hook `useAvaliacaoPreventiva` consulta a view existente, monta a triangulação e a passa a `avaliarPreventivamente`.
+- Quando a triangulação é válida, o motor usa **essa chuva observada interpolada** em lugar do acumulado de uma única estação, preservando os códigos das estações nos motivos/auditoria da avaliação.
+- Quando não existe cobertura confiável, a avaliação do endereço retorna **dados insuficientes**; não presume que a chuva no imóvel é zero.
+- A chuva **prevista** continua sendo a previsão Open-Meteo diretamente no ponto, e **não** é calculada a partir dos pluviômetros. Estações medem o passado; extrapolar essas leituras para afirmar a chuva futura seria incorreto sem um modelo meteorológico validado.
+- A previsão futura e a chuva já observada continuam **separadas**; o motor não soma 24 h passadas com 24 h futuras para disparar alertas. A regra de exposição física e de bloqueio de alerta forte permanece.
+
+## Interface
+
+A página `/analise-preventiva` passa a mostrar um cartão **Chuva estimada entre estações** com três estações, seus acumulados, distâncias e pesos da interpolação; mostra também a previsão futura ao lado. A tela principal mostra o acumulado espacial interpolado quando válido.
+
+## Implantação e restrições
+
+- Atualização apenas do **frontend React/TypeScript**, sem migrations para esta mudança. O banco e os cadastros existentes são preservados.
+- Fazer upload do código ao GitHub (preferencialmente em branch), executar os testes e **Redeploy** da Vercel com `Root Directory=frontend` e Node 24.x.
+- Nenhuma notificação push/e-mail é ativada por este código; o envio real ainda requer rotina no servidor, permissões e validação hidrológica.
+- O uso no frontend não garante que o sistema monitore continuamente com a aba fechada; isso exige servidor/agendamento independente.
+- Não dispensa alertas da Defesa Civil. A estimativa é uma aproximação sem calibração espacial para as chuvas convectivas e o relevo complexo de Cajamar.
+
+## Diagnóstico do terreno
+
+A página também exibe o diagnóstico da RPC `terreno_motor2_no_ponto` implementado na revisão 1.3. Ausência de cota não deve apagar o resultado meteorológico nem gerar falsa segurança.

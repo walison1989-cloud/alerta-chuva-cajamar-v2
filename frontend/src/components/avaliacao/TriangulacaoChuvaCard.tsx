@@ -13,7 +13,9 @@ interface Props {
 export function TriangulacaoChuvaCard({ leitura, isLoading, error }: Props) {
   const supported = leitura.suporteEspacial && leitura.chuvaObservadaMm !== null
   const tone = supported ? 'safe' : 'attention'
-  const label = supported ? 'Cobertura espacial disponível' : 'Sem triângulo confiável'
+  const label = supported
+    ? leitura.metodo === 'direta' ? 'Medição próxima do imóvel' : 'Três estações ao redor'
+    : 'Cobertura insuficiente'
 
   return (
     <Card className="p-5" aria-labelledby="triangulacao-chuva">
@@ -38,12 +40,12 @@ export function TriangulacaoChuvaCard({ leitura, isLoading, error }: Props) {
             <div className="rounded-xl bg-slate-50 p-3">
               <p className="text-xs font-semibold uppercase text-slate-500">Chuva observada estimada</p>
               <p className="mt-1 text-xl font-bold text-slate-950">{leitura.chuvaObservadaMm === null ? '—' : formatMm(leitura.chuvaObservadaMm)}</p>
-              <p className="text-xs text-slate-500">24 h anteriores · IDW²</p>
+              <p className="text-xs text-slate-500">{leitura.metodo === 'direta' ? '24 h anteriores · medição próxima' : '24 h anteriores · triângulo de estações'}</p>
             </div>
             <div className="rounded-xl bg-slate-50 p-3">
               <p className="text-xs font-semibold uppercase text-slate-500">Estações consideradas</p>
               <p className="mt-1 text-xl font-bold text-slate-950">{leitura.estacoes.length}</p>
-              <p className="text-xs text-slate-500">CEMADEN · leitura recente</p>
+              <p className="text-xs text-slate-500">CEMADEN · {leitura.metodo === 'direta' ? 'medição local' : 'três estações, se disponíveis'}</p>
             </div>
             <div className="rounded-xl bg-slate-50 p-3">
               <p className="text-xs font-semibold uppercase text-slate-500">Previsão próximas 24 h</p>
@@ -53,7 +55,8 @@ export function TriangulacaoChuvaCard({ leitura, isLoading, error }: Props) {
           </div>
 
           <div className="mt-3 rounded-xl border border-slate-200 px-3 py-2.5 text-sm leading-relaxed text-slate-700">
-            <p className="font-semibold">Leitura complementar: {leitura.motivo}</p>
+            <p className="font-semibold">{leitura.justificativa}</p>
+            <p className="mt-1 text-xs text-slate-600">{leitura.motivo}</p>
             {!supported && leitura.chuvaObservadaMm !== null ? (
               <p className="mt-1 text-xs text-attention-800">A interpolação aparece como referência, mas não participa da classificação porque não há triângulo envolvendo o ponto.</p>
             ) : null}
@@ -82,7 +85,7 @@ export function TriangulacaoChuvaCard({ leitura, isLoading, error }: Props) {
 
       <p className="mt-3 flex items-start gap-1.5 rounded-xl bg-attention-50 px-3 py-2 text-xs leading-relaxed text-attention-950">
         <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        <span>Triangulação IDW² e regras experimentais, sem calibração local. Não é probabilidade nem alerta de alagamento; não envia avisos. Versão {leitura.motorVersao}.</span>
+        <span>Interpolação triangular e regras experimentais, sem calibração local. Não é probabilidade nem alerta de alagamento; não envia avisos. Versão {leitura.motorVersao}.</span>
       </p>
     </Card>
   )

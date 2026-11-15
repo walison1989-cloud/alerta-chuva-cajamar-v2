@@ -102,3 +102,10 @@ Documentação adicional: `docs/STATUS_RISCO_ENDERECO_E_NOTIFICACOES.md`, `docs/
 - Testes de handlers da Edge Function: **11 aprovados** no ambiente de montagem.
 - Testes completos de frontend: **não executados neste ambiente**, que dispõe de Node 22; o projeto requer Node 24/26. Execute no seu Windows antes de publicar.
 - Não houve acesso ao Supabase remoto, aplicação de migrations, envio real de alertas ou push ao GitHub na preparação deste pacote.
+
+
+## Melhoria 1.4: três pluviômetros ao redor do endereço
+
+O cálculo da tela `/analise-preventiva` agora utiliza a interpolação de **exatamente três estações CEMADEN** que envolvam o endereço. Dados das estações vêm da `vw_estacoes_publicas` **já existente**. A previsão Open-Meteo continua nas coordenadas do imóvel. O diagnóstico de terreno é preservado.
+
+Veja `docs/TRIANGULACAO_MOTOR.md` para restrições de confiabilidade e testes. **Não execute migrations antigas de novo**: essa mudança não requer migration.

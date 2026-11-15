@@ -8,12 +8,13 @@ import { useAuth } from '@/hooks/useAuth'
 import { useAvaliacaoPreventiva } from '@/hooks/useAvaliacaoPreventiva'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { resumirRiscoEndereco } from '@/lib/statusRiscoEndereco'
+import { TriangulacaoChuvaCard } from '@/components/avaliacao/TriangulacaoChuvaCard'
 
 function PainelEndereco() {
   const { user } = useAuth()
   const query = useAvaliacaoPreventiva(user?.id ?? null)
   const status = resumirRiscoEndereco(query.avaliacao)
-  const carregando = query.isLoading || query.weatherIsLoading
+  const carregando = query.isLoading || query.weatherIsLoading || query.estacoesEspaciaisLoading
   const estilo = status.status === 'risco'
     ? 'border-red-300 bg-red-50 text-red-950'
     : status.status === 'sem_indicios'
@@ -22,7 +23,11 @@ function PainelEndereco() {
   const Icone = status.status === 'risco'
     ? AlertTriangle : status.status === 'sem_indicios' ? CheckCircle2 : HelpCircle
   const terreno = query.evidencias?.terreno
-  const chuva = query.avaliacao?.resultado.estacaoReferencia?.chuva24hMm
+  const chuvaEstimativa = query.chuvaTriangulada?.suporteEspacial ? query.chuvaTriangulada.chuvaObservadaMm : null
+  const chuva = chuvaEstimativa ?? query.avaliacao?.resultado.estacaoReferencia?.chuva24hMm
+  const fonteChuva = chuvaEstimativa !== null
+    ? query.chuvaTriangulada?.metodo === 'direta' ? 'Medição próxima (24 h)' : 'Chuva estimada (3 estações, 24 h)'
+    : 'Chuva na estação de referência (24 h)' 
   const previsao = query.previsao?.precipMm24h
 
   return (
@@ -60,13 +65,25 @@ function PainelEndereco() {
       <Card className="p-5 sm:p-6">
         <h2 className="text-lg font-bold text-slate-900">Dados verificados</h2>
         <dl className="mt-3 grid grid-cols-2 gap-4 text-sm">
-          <div><dt className="text-slate-500">Chuva medida (24 h)</dt><dd className="mt-1 font-bold text-slate-900">{typeof chuva === 'number' ? `${chuva.toFixed(1).replace('.', ',')} mm` : 'Sem leitura válida'}</dd></div>
+          <div><dt className="text-slate-500">{fonteChuva}</dt><dd className="mt-1 font-bold text-slate-900">{typeof chuva === 'number' ? `${chuva.toFixed(1).replace('.', ',')} mm` : 'Sem leitura válida'}</dd></div>
           <div><dt className="text-slate-500">Chuva prevista (24 h)</dt><dd className="mt-1 font-bold text-slate-900">{typeof previsao === 'number' ? `${previsao.toFixed(1).replace('.', ',')} mm` : 'Indisponível'}</dd></div>
           <div><dt className="text-slate-500">Altura relativa do terreno</dt><dd className="mt-1 font-bold text-slate-900">{typeof terreno?.elevacaoRelativaM === 'number' ? `${terreno.elevacaoRelativaM.toFixed(1).replace('.', ',')} m` : 'Não obtida'}</dd></div>
           <div><dt className="text-slate-500">Exposição hidrológica</dt><dd className="mt-1 font-bold text-slate-900">{query.avaliacao?.resultado.diagnostico?.exposicao === 'confirmada' ? 'Confirmada' : 'Não comprovada'}</dd></div>
         </dl>
+        {query.terrenoDiagnostico ? (
+          <p role="status" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-relaxed text-amber-900">
+            <strong>Diagnóstico da altimetria:</strong> {query.terrenoDiagnostico}
+          </p>
+        ) : null}
         <p className="mt-3 text-xs leading-relaxed text-slate-500">A altitude relativa não comprova sozinha que a água alcance o imóvel. Dados das estações também podem ter cobertura limitada.</p>
       </Card>
+      {query.leituraTriangulada ? (
+        <TriangulacaoChuvaCard
+          leitura={query.leituraTriangulada}
+          isLoading={query.estacoesEspaciaisLoading || query.weatherIsLoading}
+          error={query.estacoesEspaciaisError}
+        />
+      ) : null}
       <Card className="p-5 sm:p-6">
         <div className="flex items-center gap-3"><Bell className="h-6 w-6 text-brand-700" aria-hidden="true" /><h2 className="text-lg font-bold text-slate-900">Receber avisos por e-mail ou celular</h2></div>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">Cadastre um contato e autorize o canal de aviso. O envio automático exige a configuração do serviço de notificações no servidor; o cadastro sozinho não ativa os disparos.</p>

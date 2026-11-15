@@ -9,7 +9,7 @@ import {
   criarPreviaNotificacaoInterna,
   fetchEvidenciasDoMorador,
   fetchEvidenciasNoPonto,
-  fetchTerrenoNoPonto,
+  fetchTerrenoComDiagnosticoNoPonto,
   fetchHistoricoAvaliacoes,
   fetchRegraAvaliacaoPublica,
   registrarAvaliacaoPreventiva,
@@ -17,6 +17,8 @@ import {
 import { getMyAddress } from '@/lib/addresses'
 import { fetchPublicRainStations } from '@/lib/rain'
 import { getSupabaseClient } from '@/lib/supabase'
+import { avaliarTriangulacao, triangularChuva24h } from '@/lib/triangulacaoChuva'
+import type { LeituraTriangulada, ChuvaTriangulada24h } from '@/lib/triangulacaoChuva'
 import { useWeather } from '@/hooks/useWeather'
 import type { AddressRecord } from '@/types/address'
 import type {
@@ -46,10 +48,13 @@ export interface AvaliacaoPreventivaQuery {
   regraError: string | null
   evidencias: PacoteEvidencias | null
   estacoesEspaciais: RainStation[]
+  chuvaTriangulada: ChuvaTriangulada24h | null
+  leituraTriangulada: LeituraTriangulada | null
   estacoesEspaciaisError: string | null
   estacoesEspaciaisLoading: boolean
   avaliadoEm: number
   evidenciasError: string | null
+  terrenoDiagnostico: string | null
   avaliacao: AvaliacaoPreventiva | null
   weather: WeatherData | null
   weatherError: string | null
@@ -89,6 +94,7 @@ export function useAvaliacaoPreventiva(
   const [regraError, setRegraError] = useState<string | null>(null)
   const [evidencias, setEvidencias] = useState<PacoteEvidencias | null>(null)
   const [evidenciasError, setEvidenciasError] = useState<string | null>(null)
+  const [terrenoDiagnostico, setTerrenoDiagnostico] = useState<string | null>(null)
   const [estacoesEspaciais, setEstacoesEspaciais] = useState<RainStation[]>([])
   const [estacoesEspaciaisError, setEstacoesEspaciaisError] = useState<string | null>(null)
   const [estacoesEspaciaisLoading, setEstacoesEspaciaisLoading] = useState(Boolean(client))
@@ -213,6 +219,7 @@ export function useAvaliacaoPreventiva(
       setIsLoading(true)
       setRegraError(null)
       setEvidenciasError(null)
+      setTerrenoDiagnostico(null)
       setEstacoesEspaciaisError(null)
 
       let loadedRule: RegraAvaliacaoPublica | null = null
@@ -267,17 +274,29 @@ export function useAvaliacaoPreventiva(
         // O pacote antigo não inclui automaticamente a RPC de terreno.
         // Falha na leitura topográfica não pode derrubar toda a meteorologia.
         let terreno = loadedEvidencias.terreno ?? null
+        let diagnostico: string | null = null
         if (origin === 'imovel' && hasAddressCoordinates &&
             typeof addressLatitude === 'number' && typeof addressLongitude === 'number') {
           try {
-            terreno = await fetchTerrenoNoPonto(
+            const consulta = await fetchTerrenoComDiagnosticoNoPonto(
               supabase, addressLatitude, addressLongitude, controller.signal,
             )
-          } catch {
-            terreno = null // Não inventar elevação/conectividade.
+            // Não descartar uma leitura válida que já veio do pacote de evidências.
+            if (consulta.terreno?.qualidade === 'boa' ||
+                (consulta.terreno?.qualidade === 'limitada' && !terreno)) {
+              terreno = consulta.terreno
+            } else if (!terreno) {
+              terreno = consulta.terreno
+            }
+            diagnostico = terreno?.qualidade === 'boa' &&
+              terreno.elevacaoRelativaM !== null ? null : consulta.diagnostico
+          } catch (caught) {
+            // Falha da RPC não pode apagar as leituras de chuva e previsão.
+            diagnostico = describeError(caught, 'Falha na consulta topográfica.')
           }
         }
         if (!active) return
+        setTerrenoDiagnostico(diagnostico)
         setEvidencias({ ...loadedEvidencias, terreno })
         setAgora(Date.now())
       } catch (caught) {
@@ -359,6 +378,24 @@ export function useAvaliacaoPreventiva(
     }
   }, [weather.data, weather.lastFetchedAt])
 
+  const chuvaTriangulada = useMemo<ChuvaTriangulada24h | null>(() => {
+    if (origin !== 'imovel' || !hasAddressCoordinates ||
+        addressLatitude === null || addressLongitude === null) return null
+    return triangularChuva24h(
+      { latitude: addressLatitude, longitude: addressLongitude },
+      estacoesEspaciais, agora,
+    )
+  }, [origin, hasAddressCoordinates, addressLatitude, addressLongitude, estacoesEspaciais, agora])
+
+  const leituraTriangulada = useMemo<LeituraTriangulada | null>(() => {
+    if (origin !== 'imovel' || !hasAddressCoordinates ||
+        addressLatitude === null || addressLongitude === null) return null
+    return avaliarTriangulacao(
+      { latitude: addressLatitude, longitude: addressLongitude },
+      estacoesEspaciais, evidencias, previsao, regra, agora,
+    )
+  }, [origin, hasAddressCoordinates, addressLatitude, addressLongitude, estacoesEspaciais, evidencias, previsao, regra, agora])
+
   const avaliacao = useMemo<AvaliacaoPreventiva | null>(() => {
     if (!client || !evidencias) return null
     if (userId && !addressLoaded) return null
@@ -384,6 +421,11 @@ export function useAvaliacaoPreventiva(
       previsaoErro: weather.error,
       previsaoEmCache: weather.isCached,
       motorVersao: MOTOR_VERSAO,
+      chuvaTriangulada: chuvaTriangulada ? {
+        chuvaObservadaMm: chuvaTriangulada.chuvaObservadaMm,
+        suporteEspacial: chuvaTriangulada.suporteEspacial,
+        estacoes: chuvaTriangulada.estacoes.map((estacao) => estacao.codigo),
+      } : null,
     })
   }, [
     client,
@@ -397,6 +439,7 @@ export function useAvaliacaoPreventiva(
     agora,
     weather.error,
     weather.isCached,
+    chuvaTriangulada,
   ])
 
   const registrar = useCallback(async (): Promise<string | null> => {
@@ -459,10 +502,13 @@ export function useAvaliacaoPreventiva(
     regraError,
     evidencias,
     estacoesEspaciais,
+    chuvaTriangulada,
+    leituraTriangulada,
     estacoesEspaciaisError,
     estacoesEspaciaisLoading,
     avaliadoEm: agora,
     evidenciasError,
+    terrenoDiagnostico,
     avaliacao,
     weather: weather.data,
     weatherError: weather.error,

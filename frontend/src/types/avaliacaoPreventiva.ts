@@ -276,6 +276,8 @@ export interface EntradaMotor {
   previsaoErro: string | null
   previsaoEmCache: boolean
   motorVersao: string
+  /** Chuva observada estimada entre três pluviômetros públicos válidos. */
+  chuvaTriangulada?: { chuvaObservadaMm: number | null; suporteEspacial: boolean; estacoes: string[] } | null
 }
 
 export interface AvaliacaoPreventiva {

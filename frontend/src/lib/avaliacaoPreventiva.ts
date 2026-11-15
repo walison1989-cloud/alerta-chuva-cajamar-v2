@@ -371,7 +371,21 @@ export function avaliarPreventivamente(
     raioPreferencial,
   )
 
-  if (estacoesFrescas.length === 0) {
+  const triangulada = entrada.origem === 'imovel' ? entrada.chuvaTriangulada : null
+  const triangularValida = Boolean(triangulada?.suporteEspacial &&
+    typeof triangulada.chuvaObservadaMm === 'number' &&
+    Number.isFinite(triangulada.chuvaObservadaMm) && triangulada.chuvaObservadaMm >= 0)
+  // A API de chuva não comprova representação local com uma única estação.
+  // Em avaliações de endereço com triangulação habilitada, só classificar
+  // se o triângulo for válido (ou houver medição praticamente no próprio ponto).
+  if (triangulada && !triangularValida) {
+    addAusente({
+      codigo: 'chuva_sem_triangulo',
+      descricao: 'Não foi possível estimar a chuva observada do imóvel com três estações próximas e atuais que cerquem o endereço.',
+      fonte: 'CEMADEN',
+    })
+  }
+  if (estacoesFrescas.length === 0 && !triangularValida) {
     addAusente({
       codigo: 'chuva_observada_fresca',
       descricao: `Nenhuma estação com acumulado de 24 h e leitura de até ${frescorHoras} h foi encontrada.`,
@@ -476,9 +490,12 @@ export function avaliarPreventivamente(
       evidencias.cartografia &&
       evidencias.suscetibilidade.length === 0,
   )
-  const chuvaObservada = estacaoReferencia
+  const chuvaObservadaMm = triangulada
+    ? (triangularValida ? triangulada.chuvaObservadaMm : null)
+    : estacaoReferencia?.chuva24hMm ?? null
+  const chuvaObservada = chuvaObservadaMm !== null
     ? classificarFaixaExperimental(
-        estacaoReferencia.chuva24hMm,
+        chuvaObservadaMm,
         parametros?.faixasObservado24hMm ?? [],
       )
     : 0
@@ -493,6 +510,14 @@ export function avaliarPreventivamente(
   // e suportes espaciais diferentes: nunca somar nem tratar como 48 h.
   const chuvaCombinada = Math.max(chuvaObservada, previsao)
 
+  if (triangularValida) {
+    motivos.push({
+      codigo: 'chuva_triangulada_3_estacoes',
+      dimensao: 'chuva_observada',
+      descricao: `Estimativa de ${formatMm(chuvaObservadaMm!)} nas últimas 24 h no ponto, interpolada entre ${triangulada!.estacoes.length} pluviômetros. Não é medição direta, previsão futura ou confirmação de risco.`,
+      evidencias: triangulada!.estacoes.map((codigo) => `estacao:${codigo}`),
+    })
+  }
   const dimensoes: DimensoesAvaliacao = {
     suscetibilidade,
     chuvaObservada,
@@ -726,7 +751,9 @@ export function avaliarPreventivamente(
           }; fonte ${evidencias.cartografia.fonte}, escala ${evidencias.cartografia.escala}.`
         : `Suscetibilidade: nenhuma área oficial mapeada no raio de ${raioSuscetibilidade} m; a carta pode não cobrir o ponto.`
 
-  const chuvaTexto = estacaoReferencia
+  const chuvaTexto = triangularValida
+    ? `Chuva observada estimada no imóvel: ${formatMm(chuvaObservadaMm!)} nas 24 h passadas, entre três estações válidas; não é medição direta no endereço.`
+    : estacaoReferencia
     ? `Chuva observada: ${formatMm(estacaoReferencia.chuva24hMm ?? 0)} em 24 h na estação ${estacaoReferencia.nome} (${formatDistanciaKmAvaliacao(estacaoReferencia.distanciaKm)}), leitura de ${formatDateTime(estacaoReferencia.dataHora)}.`
     : 'Chuva observada: nenhuma estação com leitura fresca e acumulado de 24 h.'
 
