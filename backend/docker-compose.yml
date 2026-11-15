@@ -1,0 +1,14 @@
+# Optional independent legacy database; never points to Supabase.
+services:
+  postgres_postgis:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: alerta_chuva_cajamar
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no ambiente local}
+    ports:
+      - "127.0.0.1:5450:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:

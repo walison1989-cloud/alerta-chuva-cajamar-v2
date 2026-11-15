@@ -1,0 +1,68 @@
+name: MVP validation
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: mvp-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      VITE_ENABLE_EXPERIMENTAL_ANALYSIS: 'false'
+      VITE_ENABLE_CEMADEN_LIVE_FALLBACK: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run test:sources
+      - run: npm run build
+      - run: npm audit --omit=dev --audit-level=high
+      - run: node --test supabase/functions/tests/handlers.test.mjs
+        working-directory: .
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pip check
+      - run: python -m pytest -c pytest.ini -q
+      - run: python scripts/verify_repo.py --tracked
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - id: setup-supabase-cli
+        uses: supabase/setup-cli@v3
+        with:
+          version: v2.stable
+      - run: supabase start
+      - run: supabase db reset --local
+      - run: supabase test db
+      - run: supabase stop --no-backup
+        if: always() && steps.setup-supabase-cli.outcome == 'success'
+  edge-types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno check supabase/functions/geocode-address/index.ts supabase/functions/sync-cemaden/index.ts

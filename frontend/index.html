@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b4f9c" />
+    <meta
+      name="description"
+      content="Alerta de Chuva Cajamar: informações meteorológicas, mapa do município e registro de ocorrências de alagamento em Cajamar, SP."
+    />
+    <meta name="application-name" content="Alerta de Chuva Cajamar" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Chuva Cajamar" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <link rel="preconnect" href="https://api.open-meteo.com" crossorigin />
+    <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin />
+
+    <title>Alerta de Chuva Cajamar</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      <div style="padding: 24px; font-family: sans-serif">
+        <h1>Alerta de Chuva Cajamar</h1>
+        <p>Este aplicativo precisa de JavaScript habilitado para funcionar.</p>
+        <p>Em emergências, ligue 199 (Defesa Civil) ou 193 (Bombeiros).</p>
+      </div>
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

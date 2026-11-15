@@ -1,0 +1,52 @@
+{
+  "generated_from": "MDT recortado do ZIP original do usuário",
+  "release": "0.3.0",
+  "date": "2026-11-08",
+  "files": [
+    {
+      "path": "data/processed/mde_cajamar_recortado.tif",
+      "bytes": 21952066,
+      "sha256": "618524fd7991111844d9c4abc2c1082aa95009769dcde92e4e21baf9022d93d1",
+      "width": 2515,
+      "height": 3373,
+      "nodata": -3.4028234663852886e+38,
+      "min": 685.0304565429688,
+      "max": 1079.4759521484375,
+      "valid_pixels": 5261001
+    },
+    {
+      "path": "data/processed/declividade_graus.tif",
+      "bytes": 25063636,
+      "sha256": "43962a8c4583edeff29d93c87c1786ab03156480c1b893e36273d00376117ee0",
+      "width": 2515,
+      "height": 3373,
+      "nodata": -3.4028234663852886e+38,
+      "min": 0.0,
+      "max": 61.311641693115234,
+      "valid_pixels": 5248474
+    },
+    {
+      "path": "data/processed/elevacao_relativa.tif",
+      "bytes": 26636656,
+      "sha256": "f9f2db3f215e3b4b0ea18d548028628de5fa3f5618762257ac34abae29804738",
+      "width": 2515,
+      "height": 3373,
+      "nodata": -3.4028234663852886e+38,
+      "min": -32.126556396484375,
+      "max": 31.70623207092285,
+      "valid_pixels": 5261001
+    },
+    {
+      "path": "data/processed/area_topograficamente_baixa.tif",
+      "bytes": 1426666,
+      "sha256": "cf27f47567dcf48c7b9573e376c174fad9bade5475bcf004c28eb4dbcfc5cb93",
+      "width": 2515,
+      "height": 3373,
+      "nodata": -3.4028234663852886e+38,
+      "min": 0.0,
+      "max": 1.0,
+      "valid_pixels": 5261001
+    }
+  ],
+  "calibrated_flood_model": false
+}

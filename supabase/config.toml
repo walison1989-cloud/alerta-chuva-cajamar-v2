@@ -1,0 +1,10 @@
+project_id = "alerta-chuva-cajamar-local"
+
+[db.seed]
+enabled = false
+
+[functions.geocode-address]
+verify_jwt = false
+
+[functions.sync-cemaden]
+verify_jwt = false

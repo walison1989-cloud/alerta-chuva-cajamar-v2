@@ -1,0 +1,41 @@
+# Local configuration and private credentials
+.env
+.env.*
+!.env.example
+env.local
+.envrc
+*.pem
+*.key
+
+# Dependencies, builds and test outputs
+node_modules/
+venv/
+.venv/
+__pycache__/
+*.pyc
+dist/
+dist-validation/
+.pytest_cache/
+.pytest_tmp/
+*.tsbuildinfo
+.coverage
+htmlcov/
+*.log
+playwright-report/
+test-results/
+
+# Local databases, large geodata and Supabase state
+*.db
+*.db-*
+*.sqlite*
+*.zip
+data/raw/*
+!data/raw/MANIFESTO_RAW.md
+data/processed/*.tif
+supabase/.temp/
+supabase/.branches/
+supabase/scripts/out/
+
+# Private training evidence, candidate weights and individual predictions
+data/training/
+models/
