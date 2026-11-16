@@ -1,3 +1,5 @@
+> **Atualização experimental v1.5:** consulte [`ATUALIZACAO_V1_5_PUSH_E_RISCO.md`](ATUALIZACAO_V1_5_PUSH_E_RISCO.md) para painel de chuva/risco e Web Push. Envio remoto permanece desligado até configuração e homologação.
+
 # Alerta de Chuva Cajamar — MVP 0.3.0
 
 **Novo repositório com o mesmo banco Supabase:** comece por [`INICIAR_AQUI.md`](INICIAR_AQUI.md). O pacote inclui o motor v1.2 do frontend (regra experimental 1.1.0), não executa migrations remotas e não envia alertas automaticamente.

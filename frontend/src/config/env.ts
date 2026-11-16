@@ -59,6 +59,7 @@ export const env = Object.freeze({
   ),
   supabaseUrl,
   supabaseAnonKey,
+  webPushPublicKey: readText(import.meta.env.VITE_WEB_PUSH_PUBLIC_KEY, ''),
   // A análise permanece explicitamente rotulada como experimental. Ela fica
   // acessível no MVP, mas pode ser ocultada em qualquer ambiente com false.
   experimentalAnalysisEnabled:

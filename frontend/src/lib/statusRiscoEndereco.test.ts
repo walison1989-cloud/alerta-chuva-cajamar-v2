@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { resumirRiscoEndereco } from '@/lib/statusRiscoEndereco'
 import { avaliarPreventivamente } from '@/lib/avaliacaoPreventiva'
-import { makeEntrada, makeEvidencias, makePrevisao } from '@/test/fixtures/avaliacao'
+import { AGORA, makeEntrada, makeEvidencias, makePrevisao } from '@/test/fixtures/avaliacao'
 
 const base = avaliarPreventivamente(makeEntrada())
 
@@ -48,5 +48,35 @@ describe('resumo seguro para o morador', () => {
       dadosAusentes: [], dadosDesatualizados: [],
       diagnostico: { exposicao: 'confirmada' as const, sinalMeteorologico: 'ambos' as const, pico3hMm: 30, pico6hMm: 45, justificativa: '' } }
     expect(resumirRiscoEndereco({ ...base, resultado: result }).podeAcionarAlerta).toBe(true)
+  })
+})
+
+
+describe('painel meteorológico com triangulação', () => {
+  const options = (mmObservada: number | null, mmPrevista: number | null) => ({
+    chuvaTriangulada: { suporteEspacial: mmObservada !== null, chuvaObservadaMm: mmObservada },
+    previsao: makePrevisao({ precipMm24h: mmPrevista }),
+    agora: AGORA,
+  })
+  it('mostra acompanhamento com 0,8mm observados e 18,5mm previstos apesar da exposição não confirmada', () => {
+    const result = resumirRiscoEndereco(base, options(0.8, 18.5))
+    expect(result.status).toBe('acompanhamento')
+    expect(result.titulo).toContain('Chuva prevista')
+    expect(result.riscoAlagamento).toContain('Não há confirmação')
+    expect(result.podeAcionarAlerta).toBe(false)
+  })
+  it('exibe ausência de sinal meteorológico sem declarar imóvel seguro', () => {
+    const result = resumirRiscoEndereco(base, options(0.2, 0.5))
+    expect(result.status).toBe('sem_indicios')
+    expect(result.riscoAlagamento).toContain('não elimina')
+  })
+  it('não transforma previsão forte sozinha em risco de alagamento confirmado', () => {
+    const result = resumirRiscoEndereco(base, options(0.8, 45))
+    expect(result.status).toBe('acompanhamento')
+    expect(result.podeAcionarAlerta).toBe(false)
+  })
+  it('não classifica com previsão ou triangulação ausente', () => {
+    expect(resumirRiscoEndereco(base, options(null, 15)).status).toBe('indeterminado')
+    expect(resumirRiscoEndereco(base, options(1, null)).status).toBe('indeterminado')
   })
 })

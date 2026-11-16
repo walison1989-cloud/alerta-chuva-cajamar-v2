@@ -9,16 +9,23 @@ import { useAvaliacaoPreventiva } from '@/hooks/useAvaliacaoPreventiva'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { resumirRiscoEndereco } from '@/lib/statusRiscoEndereco'
 import { TriangulacaoChuvaCard } from '@/components/avaliacao/TriangulacaoChuvaCard'
+import { PushNotificationsCard } from '@/components/avaliacao/PushNotificationsCard'
 
 function PainelEndereco() {
   const { user } = useAuth()
   const query = useAvaliacaoPreventiva(user?.id ?? null)
-  const status = resumirRiscoEndereco(query.avaliacao)
+  const status = resumirRiscoEndereco(query.avaliacao, {
+    chuvaTriangulada: query.chuvaTriangulada,
+    previsao: query.previsao,
+    agora: query.avaliadoEm,
+  })
   const carregando = query.isLoading || query.weatherIsLoading || query.estacoesEspaciaisLoading
   const estilo = status.status === 'risco'
     ? 'border-red-300 bg-red-50 text-red-950'
     : status.status === 'sem_indicios'
       ? 'border-emerald-300 bg-emerald-50 text-emerald-950'
+      : status.status === 'acompanhamento'
+        ? 'border-sky-300 bg-sky-50 text-sky-950'
       : 'border-amber-300 bg-amber-50 text-amber-950'
   const Icone = status.status === 'risco'
     ? AlertTriangle : status.status === 'sem_indicios' ? CheckCircle2 : HelpCircle
@@ -55,6 +62,10 @@ function PainelEndereco() {
           {carregando && !query.avaliacao ? 'Verificando dados…' : status.titulo}
         </h2>
         <p className="mt-3 max-w-xl text-base leading-relaxed">{status.mensagem}</p>
+        <div className="mt-4 rounded-xl border border-current/15 bg-white/70 px-4 py-3 text-sm" role="status">
+          <strong>Alagamento neste endereço:</strong> {status.riscoAlagamento}
+        </div>
+        {status.avisoDados ? <p className="mt-2 text-xs font-medium">{status.avisoDados}</p> : null}
         <p className="mt-3 text-xs font-medium opacity-80">Avaliação experimental · Não é alerta oficial nem garantia de segurança.</p>
         {query.error ? <p role="alert" className="mt-3 text-sm font-semibold">{query.error}</p> : null}
         <Button type="button" variant="secondary" size="sm" className="mt-5" onClick={query.refresh} disabled={carregando}>
@@ -84,8 +95,9 @@ function PainelEndereco() {
           error={query.estacoesEspaciaisError}
         />
       ) : null}
+      <PushNotificationsCard userId={user?.id ?? null} enderecoId={query.address?.id ?? null} />
       <Card className="p-5 sm:p-6">
-        <div className="flex items-center gap-3"><Bell className="h-6 w-6 text-brand-700" aria-hidden="true" /><h2 className="text-lg font-bold text-slate-900">Receber avisos por e-mail ou celular</h2></div>
+        <div className="flex items-center gap-3"><Bell className="h-6 w-6 text-brand-700" aria-hidden="true" /><h2 className="text-lg font-bold text-slate-900">Outros canais de aviso: e-mail e celular</h2></div>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">Cadastre um contato e autorize o canal de aviso. O envio automático exige a configuração do serviço de notificações no servidor; o cadastro sozinho não ativa os disparos.</p>
         <Link to="/contatos" className={buttonStyles('primary', 'md', 'mt-4')}>Cadastrar ou verificar meu contato</Link>
       </Card>

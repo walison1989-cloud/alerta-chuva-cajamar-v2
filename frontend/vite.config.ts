@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
     VitePWA({
       registerType: 'prompt',
       injectRegister: null,
-      includeAssets: ['favicon.svg', 'icons/apple-touch-icon.png'],
+      includeAssets: ['favicon.svg', 'icons/apple-touch-icon.png', 'push-handler.js'],
       manifest: {
         id: '/',
         name: 'Alerta de Chuva Cajamar',
@@ -61,6 +61,7 @@ export default defineConfig(({ mode }) => {
         ],
       },
       workbox: {
+        importScripts: ['/push-handler.js'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],

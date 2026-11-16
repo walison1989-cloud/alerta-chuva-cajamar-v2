@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.sync-cemaden]
 verify_jwt = false
+
+[functions.push-alertas]
+verify_jwt = false
