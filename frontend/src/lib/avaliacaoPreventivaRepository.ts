@@ -477,13 +477,43 @@ export function parseEvidenciaTerreno(value: unknown): EvidenciaTerreno | null {
   }
 }
 
-/** Consulta separada à RPC existente no Supabase (não cria tabela nova). */
-export async function fetchTerrenoNoPonto(
+/**
+ * Evidência lida no banco e diagnóstico de cobertura/permissões em separado.
+ * Nunca concluir que o imóvel está seguro quando o MDT está indisponível.
+ */
+export interface ResultadoConsultaTerreno {
+  terreno: EvidenciaTerreno | null
+  diagnostico: string | null
+}
+
+export function diagnosticarRespostaTerreno(value: unknown): string | null {
+  const source = asRecord(parseMaybeJson(value))
+  if (!source) return 'O Supabase não retornou um resultado de terreno válido.'
+  const qualidade = readText(source, 'qualidade')
+  switch (qualidade) {
+    case 'fora_cobertura':
+      return 'O endereço está fora da cobertura do modelo de terreno de 5 m instalado. É necessário ampliar a cobertura topográfica; proximidade de área suscetível não substitui essa leitura.'
+    case 'sem_dados':
+      return 'O modelo de terreno não possui leitura válida para este ponto (célula sem dados ou bloco ausente).'
+    case 'nao_instalado':
+      return 'Não foi encontrado um perfil de terreno ativo no Supabase.'
+    case 'ponto_invalido':
+      return 'As coordenadas do endereço são inválidas. Confira a localização cadastrada.'
+    case 'limitada':
+      return 'A leitura topográfica está incompleta. O risco permanece condicionado aos demais dados disponíveis.'
+    case 'boa':
+      return null
+    default:
+      return 'A RPC de terreno retornou uma condição não reconhecida. Confira a função instalada no Supabase.'
+  }
+}
+
+export async function fetchTerrenoComDiagnosticoNoPonto(
   client: SupabaseClient,
   latitude: number,
   longitude: number,
   signal?: AbortSignal,
-): Promise<EvidenciaTerreno | null> {
+): Promise<ResultadoConsultaTerreno> {
   const builder = client.rpc('terreno_motor2_no_ponto', {
     p_latitude: latitude,
     p_longitude: longitude,
@@ -491,11 +521,43 @@ export async function fetchTerrenoNoPonto(
   if (signal) builder.abortSignal(signal)
   const { data, error } = await builder
   if (error) {
+    const code = error.code ?? ''
+    const message = (error.message ?? '').toLowerCase()
+    if (code === '42501' || message.includes('permission denied')) {
+      throw new AvaliacaoPreventivaRepositoryError(
+        'A leitura de terreno foi bloqueada por permissão no Supabase. Confira o acesso EXECUTE da função para authenticated.',
+      )
+    }
+    if (code === 'PGRST202' || code === '42883' || message.includes('could not find the function')) {
+      throw new AvaliacaoPreventivaRepositoryError(
+        'A função terreno_motor2_no_ponto não está acessível na API do Supabase. Verifique schema, assinatura e permissões.',
+      )
+    }
     throw new AvaliacaoPreventivaRepositoryError(
-      'A consulta do terreno no Supabase não está disponível: ' + error.message,
+      'Falha ao consultar o terreno no Supabase (código ' + (code || 'não informado') + '). Consulte Network → rpc/terreno_motor2_no_ponto.',
     )
   }
-  return parseEvidenciaTerreno(data)
+
+  const terreno = parseEvidenciaTerreno(data)
+  const diagnostico = diagnosticarRespostaTerreno(data)
+  if (terreno?.qualidade === 'boa' && terreno.elevacaoRelativaM !== null) {
+    return { terreno, diagnostico: null }
+  }
+  return {
+    terreno,
+    diagnostico: diagnostico ?? 'A consulta retornou terreno incompleto; não foi possível obter a elevação relativa.',
+  }
+}
+
+/** Compatibilidade para consumidores que necessitam apenas dos valores. */
+export async function fetchTerrenoNoPonto(
+  client: SupabaseClient,
+  latitude: number,
+  longitude: number,
+  signal?: AbortSignal,
+): Promise<EvidenciaTerreno | null> {
+  const resposta = await fetchTerrenoComDiagnosticoNoPonto(client, latitude, longitude, signal)
+  return resposta.terreno
 }
 
 /**

@@ -4,6 +4,8 @@ import {
   AvaliacaoPreventivaRepositoryError,
   fetchHistoricoAvaliacoes,
   fetchRegraAvaliacaoPublica,
+  fetchTerrenoComDiagnosticoNoPonto,
+  diagnosticarRespostaTerreno,
   mapRegraAvaliacaoRow,
   normalizePacoteEvidencias,
   parseEvidenciaTerreno,
@@ -372,5 +374,51 @@ describe('integração de terreno existente no Supabase', () => {
 
   it('ignora dados topográficos sem origem', () => {
     expect(parseEvidenciaTerreno({qualidade: 'boa', elevacao_relativa_m: -10})).toBeNull()
+  })
+})
+
+
+describe('diagnóstico de cobertura e acesso ao MDT existente', () => {
+  it('informa falta de cobertura sem classificar o endereço como seguro', async () => {
+    const client = {
+      rpc: vi.fn().mockResolvedValue({
+        data: { qualidade: 'fora_cobertura', perfilId: 'cajamar-mdt5m' },
+        error: null,
+      }),
+    } as unknown as SupabaseClient
+    const result = await fetchTerrenoComDiagnosticoNoPonto(client, -23.4, -46.8)
+    expect(result.terreno?.elevacaoRelativaM).toBeNull()
+    expect(result.diagnostico).toContain('fora da cobertura')
+    expect(client.rpc).toHaveBeenCalledWith('terreno_motor2_no_ponto', {
+      p_latitude: -23.4, p_longitude: -46.8,
+    })
+  })
+
+  it('não exibe aviso quando a leitura tem elevação relativa válida', async () => {
+    const client = {
+      rpc: vi.fn().mockResolvedValue({
+        data: {
+          qualidade: 'boa', fonte: 'MDT', altitudeM: 812.1,
+          declividadeGraus: 4.3, elevacaoRelativaM: 9.2,
+        },
+        error: null,
+      }),
+    } as unknown as SupabaseClient
+    const result = await fetchTerrenoComDiagnosticoNoPonto(client, -23.34, -46.85)
+    expect(result.terreno?.elevacaoRelativaM).toBe(9.2)
+    expect(result.diagnostico).toBeNull()
+  })
+
+  it('não oculta acesso negado à RPC', async () => {
+    const client = {
+      rpc: vi.fn().mockResolvedValue({ data: null, error: { code: '42501', message: 'permission denied for function' } }),
+    } as unknown as SupabaseClient
+    await expect(fetchTerrenoComDiagnosticoNoPonto(client, -23.34, -46.85))
+      .rejects.toThrow('permissão')
+  })
+
+  it('distingue célula sem dados de perfil não instalado', () => {
+    expect(diagnosticarRespostaTerreno({qualidade: 'sem_dados'})).toContain('não possui leitura válida')
+    expect(diagnosticarRespostaTerreno({qualidade: 'nao_instalado'})).toContain('perfil de terreno ativo')
   })
 })
