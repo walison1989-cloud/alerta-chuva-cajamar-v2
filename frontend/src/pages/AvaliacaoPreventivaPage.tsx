@@ -1,4 +1,4 @@
-import { AlertTriangle, Bell, CheckCircle2, HelpCircle, MapPin, RefreshCw } from 'lucide-react'
+import { AlertTriangle, Bell, CheckCircle2, CloudRain, HelpCircle, MapPin, RefreshCw } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -6,14 +6,17 @@ import { buttonStyles } from '@/components/ui/buttonStyles'
 import { env } from '@/config/env'
 import { useAuth } from '@/hooks/useAuth'
 import { useAvaliacaoPreventiva } from '@/hooks/useAvaliacaoPreventiva'
+import { useTriagemHidrologica } from '@/hooks/useTriagemHidrologica'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { resumirRiscoEndereco } from '@/lib/statusRiscoEndereco'
+import { classificarChuvaAgora } from '@/lib/chuvaAgora'
 import { TriangulacaoChuvaCard } from '@/components/avaliacao/TriangulacaoChuvaCard'
 import { PushNotificationsCard } from '@/components/avaliacao/PushNotificationsCard'
 
 function PainelEndereco() {
   const { user } = useAuth()
   const query = useAvaliacaoPreventiva(user?.id ?? null)
+  const triagemAutomatica = useTriagemHidrologica(query.address?.id ?? null)
   const status = resumirRiscoEndereco(query.avaliacao, {
     chuvaTriangulada: query.chuvaTriangulada,
     previsao: query.previsao,
@@ -36,6 +39,9 @@ function PainelEndereco() {
     ? query.chuvaTriangulada?.metodo === 'direta' ? 'Medição próxima (24 h)' : 'Chuva estimada (3 estações, 24 h)'
     : 'Chuva na estação de referência (24 h)' 
   const previsao = query.previsao?.precipMm24h
+  const situacaoAgora = classificarChuvaAgora(query.weather?.current, query.weather?.fetchedAt)
+  const chuvaAgoraIndicada = situacaoAgora === 'chuva_indicada'
+  const condicaoAtual = query.weather?.current.condition.label ?? 'Indisponível'
 
   return (
     <main className="mx-auto max-w-3xl space-y-5">
@@ -55,6 +61,16 @@ function PainelEndereco() {
           </div>
         </div>
       </Card>
+      <section aria-live="polite" className={`rounded-2xl border p-5 ${chuvaAgoraIndicada ? 'border-sky-300 bg-sky-50 text-sky-950' : 'border-slate-200 bg-white text-slate-800'}`}>
+        <div className="flex items-start gap-3">
+          <CloudRain className="mt-1 h-7 w-7 shrink-0" aria-hidden="true" />
+          <div>
+            <h2 className="text-lg font-bold">{chuvaAgoraIndicada ? 'Chuva indicada agora perto do endereço' : situacaoAgora === 'sem_chuva_indicada' ? 'Sem chuva indicada agora pela previsão' : 'Condição de chuva atual indisponível'}</h2>
+            <p className="mt-1 text-sm">{situacaoAgora === 'indisponivel' ? 'A medição estimada está ausente ou desatualizada. Isso não significa que não esteja chovendo.' : `${condicaoAtual} · Precipitação estimada no intervalo atual: ${query.weather!.current.precipitationMm.toFixed(1).replace('.', ',')} mm.`}</p>
+            <p className="mt-2 text-xs">Fonte: Open-Meteo, grade meteorológica próxima ao endereço, não pluviômetro no imóvel. Horário da última consulta: {query.weather ? new Date(query.weather.fetchedAt).toLocaleString('pt-BR') : 'não disponível'}. A chuva local pode diferir do modelo.</p>
+          </div>
+        </div>
+      </section>
       <section aria-live="polite" aria-busy={carregando} className={`rounded-3xl border-2 p-6 shadow-card sm:p-8 ${estilo}`}>
         <Icone className="h-10 w-10" aria-hidden="true" />
         <p className="mt-4 text-xs font-semibold uppercase tracking-wide">Situação do endereço</p>
@@ -95,6 +111,19 @@ function PainelEndereco() {
           error={query.estacoesEspaciaisError}
         />
       ) : null}
+      <Card className="p-5 sm:p-6">
+        <h2 className="text-lg font-bold text-slate-900">Triagem automática no servidor</h2>
+        {triagemAutomatica ? (
+          <>
+            <p className="mt-2 text-sm text-slate-700">Última avaliação: {new Date(triagemAutomatica.avaliado_em).toLocaleString('pt-BR')}.</p>
+            <p className="mt-2 font-semibold text-slate-900">{triagemAutomatica.nivel === 'atencao_experimental' ? 'Atenção experimental: chuva e suscetibilidade no ponto' : triagemAutomatica.nivel === 'atencao_meteorologica' ? 'Acompanhamento meteorológico' : triagemAutomatica.nivel === 'sem_sinal_meteorologico' ? 'Sem sinais meteorológicos relevantes nos limites experimentais' : 'Dados insuficientes'}</p>
+            <p className="mt-2 text-sm text-slate-700">Processos mapeados exatamente no local: {triagemAutomatica.processos.length ? triagemAutomatica.processos.map(item => item === 'inundacao' ? 'inundação' : item === 'enxurrada' ? 'enxurrada' : item).join(', ') : 'não identificados'}. Chuva atual na grade meteorológica: {triagemAutomatica.chuva_agora_modelo === null ? 'indisponível' : triagemAutomatica.chuva_agora_modelo ? 'indicada' : 'não indicada'}.</p>
+            <p className="mt-2 text-xs text-slate-500">Triagem experimental, não é alerta de Defesa Civil nem confirmação de inundação ou segurança do imóvel.</p>
+          </>
+        ) : (
+          <p className="mt-2 text-sm text-slate-600">Ainda não existe triagem automática registrada para este endereço. A análise da tela funciona de forma independente. O monitoramento contínuo exige ativação no servidor.</p>
+        )}
+      </Card>
       <PushNotificationsCard userId={user?.id ?? null} enderecoId={query.address?.id ?? null} />
       <Card className="p-5 sm:p-6">
         <div className="flex items-center gap-3"><Bell className="h-6 w-6 text-brand-700" aria-hidden="true" /><h2 className="text-lg font-bold text-slate-900">Outros canais de aviso: e-mail e celular</h2></div>

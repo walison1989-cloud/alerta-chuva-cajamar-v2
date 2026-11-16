@@ -72,7 +72,7 @@ describe('avaliarPreventivamente', () => {
       'exposicao_espacial_nao_confirmada',
     )
     expect(avaliacao.resultado.limitacoes.join(' ')).toContain('não são somados')
-    expect(avaliacao.resultado.explicacao).toContain('não são somados')
+    expect(avaliacao.resultado.explicacao).toContain('sem somá-las')
   })
 
   it('não transforma área próxima de alta suscetibilidade em exposição do imóvel', () => {

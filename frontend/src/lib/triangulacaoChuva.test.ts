@@ -115,7 +115,7 @@ describe('triangulação experimental de chuva', () => {
   it('usa a regra publicada e bloqueia a classificação quando não há triângulo', () => {
     const insufficient = avaliarTriangulacao(point, stations.slice(0, 2), evidence, forecast, rule, now)
     expect(insufficient.status).toBe('dados_insuficientes')
-    expect(insufficient.motivo).toContain('sem triângulo')
+    expect(insufficient.motivo).toContain('menos de três pluviômetros válidos')
     const classified = avaliarTriangulacao(point, stations, evidence, forecast, rule, now)
     expect(classified.status).toBe('sinal_experimental')
     expect(classified.nivel).toBe('atencao_experimental')

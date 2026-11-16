@@ -442,7 +442,7 @@ export function parseEvidenciaTerreno(value: unknown): EvidenciaTerreno | null {
   if (!source) return null
   const fonte = readText(source, 'fonte')
   const rawQuality = readText(source, 'qualidade')
-  if (!fonte && !rawQuality) return null
+  if (!fonte) return null
 
   // Resposta REAL de public.terreno_motor2_no_ponto: chaves camelCase.
   const altitude = readNumber(source, 'altitudeM') ?? readNumber(source, 'altitude_m')

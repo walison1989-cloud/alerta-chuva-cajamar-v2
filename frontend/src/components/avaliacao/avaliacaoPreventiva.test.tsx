@@ -49,15 +49,15 @@ describe('AvaliacaoResultadoCard', () => {
 
     expect(screen.getByText('Resultado da análise preventiva')).toBeVisible()
     expect(
-      screen.getAllByText('Atenção forte experimental'),
+      screen.getAllByText('Atenção experimental'),
     ).toHaveLength(2)
-    expect(screen.getByText(/Nível 3 de 3 desta regra/)).toBeVisible()
+    expect(screen.getByText(/Nível 2 de 3 desta regra/)).toBeVisible()
     const reasons = screen.getByText(/Por que saiu este resultado/)
     expect(reasons).toBeVisible()
-    expect(screen.getByText(/suscetibilidade_alta_chuva_moderada_ou_mais/)).not.toBeVisible()
+    expect(screen.getByText(/A classificação forte foi bloqueada/)).not.toBeVisible()
     fireEvent.click(reasons)
     expect(
-      screen.getByText(/suscetibilidade_alta_chuva_moderada_ou_mais/),
+      screen.getByText(/A classificação forte foi bloqueada/),
     ).toBeVisible()
     expect(
       screen.getByText(/Não são probabilidade, nota de risco nem previsão/),

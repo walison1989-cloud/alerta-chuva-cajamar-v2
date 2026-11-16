@@ -54,7 +54,7 @@ describe('mapRegraAvaliacaoRow', () => {
   it('converte o formato do banco para o contrato do motor', () => {
     const regra = mapRegraAvaliacaoRow(regraRow())
 
-    expect(regra?.versao).toBe('exp-2026.11-v1')
+    expect(regra?.versao).toBe('exp-2026.11-v2')
     expect(regra?.parametros.frescorMaxHoras).toBe(6)
     expect(regra?.parametros.regras[0].minSuscetibilidade).toBe(2)
     expect(regra?.parametros.faixasObservado24hMm).toHaveLength(4)
@@ -203,8 +203,7 @@ describe('terreno_motor2_no_ponto — formato efetivo Supabase', () => {
 
   it('não inventa terreno quando o endereço está fora da cobertura do MDT', () => {
     const terreno = parseEvidenciaTerreno({ qualidade: 'fora_cobertura', perfilId: 'cajamar-mdt5m' })
-    expect(terreno?.qualidade).toBe('sem_dados')
-    expect(terreno?.elevacaoRelativaM).toBeNull()
+    expect(terreno).toBeNull()
   })
 })
 
@@ -256,7 +255,7 @@ describe('fetchRegraAvaliacaoPublica', () => {
     } as unknown as SupabaseClient
 
     const regra = await fetchRegraAvaliacaoPublica(client)
-    expect(regra?.motorVersao).toBe('1.0.0')
+    expect(regra?.motorVersao).toBe('1.1.0')
   })
 })
 
@@ -353,7 +352,7 @@ describe('integração de terreno existente no Supabase', () => {
     })
     expect(pacote?.terreno).toEqual({
       fonte: 'MDT publicamente documentado', qualidade: 'boa',
-      elevacaoRelativaM: 17, declividadeGraus: 4,
+      altitudeM: 785, elevacaoRelativaM: 17, declividadeGraus: 4,
       posicaoTopografica: 'elevada', conectividadeHidrologica: 'descartada',
     })
   })
@@ -387,7 +386,7 @@ describe('diagnóstico de cobertura e acesso ao MDT existente', () => {
       }),
     } as unknown as SupabaseClient
     const result = await fetchTerrenoComDiagnosticoNoPonto(client, -23.4, -46.8)
-    expect(result.terreno?.elevacaoRelativaM).toBeNull()
+    expect(result.terreno).toBeNull()
     expect(result.diagnostico).toContain('fora da cobertura')
     expect(client.rpc).toHaveBeenCalledWith('terreno_motor2_no_ponto', {
       p_latitude: -23.4, p_longitude: -46.8,
