@@ -7,7 +7,7 @@ import type {
 } from '@/types/avaliacaoPreventiva'
 import { classificarFaixaExperimental, MOTOR_VERSAO, previsaoEstaFresca } from '@/lib/avaliacaoPreventiva'
 
-export const TRIANGULACAO_VERSAO = 'triangulacao-3-estacoes-v3'
+export const TRIANGULACAO_VERSAO = 'triangulacao-gps-estacoes-ativas-v4'
 const RAIO_MAX_KM = 30
 const JANELA_ALINHAMENTO_MS = 60 * 60 * 1000
 
@@ -107,6 +107,9 @@ export function triangularChuva24h(
     return empty('Localização ou horário inválido.')
   }
   const candidates = estacoes.flatMap((station) => {
+    // Regra de elegibilidade: exige status explícito de ativa + validada.
+    // Um catálogo ou payload antigo sem os sinalizadores NÃO entra na conta.
+    if (station.active !== true || station.validated !== true) return []
     if (station.catalogueOnly || station.source.trim().toUpperCase() !== 'CEMADEN') return []
     if (station.measurementType !== 'acumulado_24h' || station.windowHours !== 24 || station.unit !== 'mm') return []
     if (station.quality !== 'oficial') return []
@@ -148,13 +151,21 @@ export function triangularChuva24h(
       dataHora: direct.station.lastReadingAt!,
     }],
   }
-  // Uma triangulação pode exigir estações que não estejam entre as três
-  // mais próximas. Examinamos até 18 estações por proximidade e escolhemos
-  // o triângulo envolvente mais compacto e temporalmente consistente.
+  // Partimos do GPS confirmado, ordenamos por DISTÂNCIA e expandimos
+  // até 18 estações ativas com leituras válidas. As três mais próximas
+  // isoladamente podem estar do mesmo lado: escolhemos então o menor
+  // triângulo envolvente, sem extrapolar a chuva fora dele.
   const pool = valid.slice(0, 18)
   if (pool.length < 3) return empty('Há menos de três pluviômetros válidos próximos ao imóvel.')
   type Candidate = typeof pool[number]
-  let selected: { items: [Candidate, Candidate, Candidate]; weights: [number, number, number]; score: number } | null = null
+  let selected: {
+    items: [Candidate, Candidate, Candidate]
+    weights: [number, number, number]
+    /** Menor raio necessário para abranger três estações do triângulo. */
+    farthestKm: number
+    /** Desempate: menor distância GPS→estações somada. */
+    sumKm: number
+  } | null = null
   for (let i = 0; i < pool.length - 2; i++) {
     for (let j = i + 1; j < pool.length - 1; j++) {
       for (let k = j + 1; k < pool.length; k++) {
@@ -166,9 +177,12 @@ export function triangularChuva24h(
         if (Math.max(a.timestamp, b.timestamp, c.timestamp) - Math.min(a.timestamp, b.timestamp, c.timestamp) > JANELA_ALINHAMENTO_MS) continue
         const weights = pesosTriangulo(ponto, a.station, b.station, c.station)
         if (!weights) continue
-        const score = farthest * 5 + a.distance + b.distance + c.distance
-        if (!selected || score < selected.score) {
-          selected = { items: [a, b, c], weights, score }
+        const sumKm = a.distance + b.distance + c.distance
+        // Primeiro o triângulo cujo pluviômetro MAIS distante está mais perto
+        // do GPS; em empate, a menor soma das distâncias.
+        if (!selected || farthest < selected.farthestKm - 1e-9 ||
+          (Math.abs(farthest - selected.farthestKm) <= 1e-9 && sumKm < selected.sumKm)) {
+          selected = { items: [a, b, c], weights, farthestKm: farthest, sumKm }
         }
       }
     }
@@ -187,7 +201,7 @@ export function triangularChuva24h(
     metodo: 'triangulo',
     justificativa: highlyVariable
       ? 'As três estações divergem muito na chuva registrada; estimativa apenas indicativa, sem segurança para classificar o imóvel.'
-      : 'Estimativa espacial interpolada com três pluviômetros CEMADEN envolvendo o endereço. Não é medição no imóvel.',
+      : 'Estimativa com o triângulo válido mais próximo do GPS confirmado, formado por três estações CEMADEN ativas e validadas. Não é medição no imóvel.',
     estacoes: selected.items.map((item, index) => ({
       codigo: item.station.code,
       nome: item.station.name,

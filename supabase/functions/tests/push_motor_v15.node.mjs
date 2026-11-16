@@ -7,7 +7,7 @@ const now=Date.parse('2026-11-15T22:00:00Z')
 const point={latitude:-23.35,longitude:-46.93}
 const r=(codigo,latitude,longitude,mm,extra={})=>({
   codigo_estacao:codigo, latitude, longitude, chuva_acumulada_mm:mm,
-  fonte:'CEMADEN',ultima_leitura_em:new Date(now-600_000).toISOString(),
+  fonte:'CEMADEN',ativa:true,validada:true,ultima_leitura_em:new Date(now-600_000).toISOString(),
   tipo_medicao:'acumulado_24h',janela_horas:24,unidade:'mm',qualidade_dado:'oficial',...extra
 })
 const gauges=[r('N',-23.34,-46.93,20),r('S',-23.36,-46.93,40),r('E',-23.35,-46.91,30),r('W',-23.35,-46.95,10)]

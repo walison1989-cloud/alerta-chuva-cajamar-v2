@@ -120,6 +120,8 @@ export function mapStationRow(row: unknown): RainStation | null {
     stationType: readText(source, 'tipo_estacao'),
     network: readText(source, 'rede'),
     sourceStatus: readInteger(source, 'status_fonte'),
+    active: source.ativa === true,
+    validated: source.validada === true,
     lastCollectedAt: readTimestamp(source, 'ultima_coleta_em'),
     lastReadingAt:
       accumulatedMm === null

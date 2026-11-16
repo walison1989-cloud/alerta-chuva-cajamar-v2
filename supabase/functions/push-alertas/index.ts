@@ -72,7 +72,7 @@ Deno.serve(async (request: Request) => {
   const addressMap = new Map(((addressRows ?? []) as Endereco[]).map(a=>[a.id,a]))
 
   const { data: stationRows } = await client.from('vw_estacoes_publicas')
-    .select('codigo_estacao,latitude,longitude,fonte,chuva_acumulada_mm,ultima_leitura_em,tipo_medicao,janela_horas,unidade,qualidade_dado').limit(500)
+    .select('codigo_estacao,latitude,longitude,fonte,ativa,validada,chuva_acumulada_mm,ultima_leitura_em,tipo_medicao,janela_horas,unidade,qualidade_dado').limit(500)
   const stations = (stationRows ?? []) as RegistroEstacao[]
   const now = Date.now()
   const cache = new Map<string, Previsao|null>()

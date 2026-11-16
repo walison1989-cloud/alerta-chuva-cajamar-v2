@@ -192,6 +192,24 @@ Deno.serve(async (request: Request): Promise<Response> => {
       toEstacaoRow(station, payload.updatedAt),
     )
 
+    // A coleta NÃO deve reativar estações administrativamente desativadas.
+    // Preservar ativa=false mesmo se o payload externo voltar a listá-las.
+    const { data: existingStatus, error: statusError } = await client
+      .from('estacoes')
+      .select('codigo_estacao,ativa')
+      .in('codigo_estacao', stationRows.map((item) => item.codigo_estacao))
+    if (statusError) {
+      throw new Error('Falha ao preservar o status ativo das estações.')
+    }
+    const inactiveCodes = new Set(
+      (existingStatus ?? [])
+        .filter((item) => item.ativa === false)
+        .map((item) => item.codigo_estacao),
+    )
+    for (const station of stationRows) {
+      if (inactiveCodes.has(station.codigo_estacao)) station.ativa = false
+    }
+
     let stationsUpserted = 0
     for (const batch of chunk(stationRows, UPSERT_CHUNK_SIZE)) {
       const { error } = await client

@@ -56,7 +56,7 @@ Deno.serve(async request=>{
     .select('id,usuario_id,latitude,longitude,consentimento_lgpd').in('id',ids).eq('consentimento_lgpd',true).limit(101)
   if(addressError)return json(503,{error:'addresses_unavailable'})
   const {data:stations,error:stationError}=await client.from('vw_estacoes_publicas')
-    .select('codigo_estacao,latitude,longitude,fonte,chuva_acumulada_mm,ultima_leitura_em,tipo_medicao,janela_horas,unidade,qualidade_dado').limit(500)
+    .select('codigo_estacao,latitude,longitude,fonte,ativa,validada,chuva_acumulada_mm,ultima_leitura_em,tipo_medicao,janela_horas,unidade,qualidade_dado').limit(500)
   if(stationError)return json(503,{error:'stations_unavailable'})
   const now=Date.now(),start=new Date(Math.floor(now/900000)*900000).toISOString()
   let processed=0,written=0,errors=0,attention=0,rainingNow=0

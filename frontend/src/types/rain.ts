@@ -38,6 +38,10 @@ export interface RainStation {
   stationType: string | null
   network: string | null
   sourceStatus: number | null
+  /** Estação habilitada no Supabase; sem confirmação, não participa da triangulação. */
+  active?: boolean
+  /** Estação validada no Supabase; sem confirmação, não participa da triangulação. */
+  validated?: boolean
   lastCollectedAt: string | null
   lastReadingAt: string | null
   /** Acumulado da janela informada. null significa indisponível. */

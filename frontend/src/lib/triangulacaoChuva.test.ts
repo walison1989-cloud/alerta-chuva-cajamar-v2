@@ -10,7 +10,7 @@ function station(code: string, latitude: number, longitude: number, mm: number, 
   return {
     key: code, id: 1, name: code, code, latitude, longitude, source: 'CEMADEN', sourceId: code,
     municipality: 'Cajamar', state: 'SP', stationType: 'Pluviométrica', network: 'CEMADEN',
-    sourceStatus: 1, lastCollectedAt: new Date(now - 5 * 60_000).toISOString(),
+    sourceStatus: 1, active: true, validated: true, lastCollectedAt: new Date(now - 5 * 60_000).toISOString(),
     lastReadingAt: new Date(now - 10 * 60_000).toISOString(), accumulatedMm: mm,
     measurementType: 'acumulado_24h', windowHours: 24, unit: 'mm', quality: 'oficial', distanceKm: null,
     ...overrides,
@@ -57,6 +57,55 @@ describe('triangulação experimental de chuva', () => {
     expect(result.estacoes).toHaveLength(3)
     expect(result.metodo).toBe('triangulo')
     expect(result.chuvaObservadaMm).toBeCloseTo(30, 1)
+  })
+
+  it('desconsidera estação inativa mesmo sendo a mais próxima do GPS', () => {
+    const inactive = station('INATIVA', point.latitude, point.longitude, 150, { active: false })
+    const result = triangularChuva24h(point, [inactive, ...stations], now)
+    expect(result.metodo).toBe('triangulo')
+    expect(result.estacoes).toHaveLength(3)
+    expect(result.estacoes.map(item => item.codigo)).not.toContain('INATIVA')
+  })
+
+  it('não usa estações sem validação explícita de atividade', () => {
+    const withoutStatus = stations.map(s => ({ ...s, active: undefined }))
+    const result = triangularChuva24h(point, withoutStatus, now)
+    expect(result.metodo).toBe('indisponivel')
+    expect(result.chuvaObservadaMm).toBeNull()
+    const notValidated = stations.map(s => ({ ...s, validated: false }))
+    expect(triangularChuva24h(point, notValidated, now).suporteEspacial).toBe(false)
+  })
+
+  it('seleciona o triângulo envolvente mais próximo em vez de outro mais distante', () => {
+    const near = [
+      station('N-PERTO', -23.346, -46.93, 10),
+      station('SO-PERTO', -23.353, -46.934, 20),
+      station('SE-PERTO', -23.353, -46.926, 30),
+    ]
+    const far = [
+      station('N-LONGE', -23.33, -46.93, 90),
+      station('SO-LONGE', -23.37, -46.95, 90),
+      station('SE-LONGE', -23.37, -46.91, 90),
+    ]
+    const result = triangularChuva24h(point, [...far, ...near], now)
+    expect(result.metodo).toBe('triangulo')
+    expect(result.estacoes.map(s => s.codigo).sort()).toEqual(['N-PERTO','SE-PERTO','SO-PERTO'].sort())
+  })
+
+  it('procura mais que as três primeiras estações caso elas não cerquem o GPS', () => {
+    const east = [
+      station('L1', -23.349, -46.929, 5),
+      station('L2', -23.35, -46.928, 5),
+      station('L3', -23.351, -46.929, 5),
+    ]
+    const others = [
+      station('N', -23.345, -46.929, 10),
+      station('S', -23.355, -46.929, 20),
+      station('W', -23.35, -46.94, 30),
+    ]
+    const result = triangularChuva24h(point, [...east, ...others], now)
+    expect(result.metodo).toBe('triangulo')
+    expect(result.estacoes.some(s => s.codigo === 'W')).toBe(true)
   })
 
   it('não interpola três estações concentradas no mesmo lado do imóvel', () => {

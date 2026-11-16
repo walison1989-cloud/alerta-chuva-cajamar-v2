@@ -1,6 +1,8 @@
 /** Núcleo puro do envio PUSH. Limiares experimentais, NÃO hidrológicos. */
 export interface RegistroEstacao {
   codigo_estacao?: string
+  ativa?: boolean
+  validada?: boolean
   latitude?: number
   longitude?: number
   fonte?: string
@@ -44,7 +46,8 @@ export function triangularChuvaServidor(p: Ponto, registros: RegistroEstacao[], 
   const vazio:ChuvaTriangulada={chuvaMm24h:null,quantidadeEstacoes:0,estacoes:[]}
   const usados=new Set<string>()
   const validos=registros.flatMap(r=>{
-    if (!r.codigo_estacao || r.fonte?.trim().toUpperCase()!=='CEMADEN' ||
+    if (r.ativa !== true || r.validada !== true ||
+      !r.codigo_estacao || r.fonte?.trim().toUpperCase()!=='CEMADEN' ||
       r.tipo_medicao!=='acumulado_24h' || r.janela_horas!==24 || r.unidade!=='mm' || r.qualidade_dado!=='oficial' ||
       typeof r.latitude!=='number'||typeof r.longitude!=='number'||typeof r.chuva_acumulada_mm!=='number'||
       !Number.isFinite(r.chuva_acumulada_mm)||r.chuva_acumulada_mm<0 ||
@@ -64,15 +67,18 @@ export function triangularChuvaServidor(p: Ponto, registros: RegistroEstacao[], 
   const direto=candidatos.find(x=>x.distance<=0.1)
   if(direto)return {chuvaMm24h:direto.r.chuva_acumulada_mm!,quantidadeEstacoes:1,estacoes:[direto.r.codigo_estacao!]}
   const pool=candidatos.slice(0,18)
-  let melhor: {a:number;b:number;c:number;pesos:[number,number,number];score:number}|null=null
+  let melhor: {a:number;b:number;c:number;pesos:[number,number,number];farthestKm:number;sumKm:number}|null=null
   for(let i=0;i<pool.length-2;i++)for(let j=i+1;j<pool.length-1;j++)for(let k=j+1;k<pool.length;k++){
     const a=pool[i],b=pool[j],c=pool[k]
     if(Math.max(a.distance,b.distance,c.distance)>15)continue
     if(Math.max(a.timestamp,b.timestamp,c.timestamp)-Math.min(a.timestamp,b.timestamp,c.timestamp)>3_600_000)continue
     const ps=pesos(p,a.r as Ponto,b.r as Ponto,c.r as Ponto)
     if(!ps)continue
-    const score=Math.max(a.distance,b.distance,c.distance)*5+a.distance+b.distance+c.distance
-    if(!melhor||score<melhor.score)melhor={a:i,b:j,c:k,pesos:ps,score}
+    const farthestKm=Math.max(a.distance,b.distance,c.distance)
+    const sumKm=a.distance+b.distance+c.distance
+    if(!melhor||farthestKm<melhor.farthestKm-1e-9||
+      (Math.abs(farthestKm-melhor.farthestKm)<=1e-9&&sumKm<melhor.sumKm))
+      melhor={a:i,b:j,c:k,pesos:ps,farthestKm,sumKm}
   }
   if(!melhor)return vazio
   const ids=[melhor.a,melhor.b,melhor.c]
